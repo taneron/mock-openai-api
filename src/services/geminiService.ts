@@ -68,7 +68,7 @@ function buildGeminiEchoContent(request: GeminiGenerateContentRequest): string {
 /**
  * Generate content (non-streaming)
  */
-export function generateContent(request: GeminiGenerateContentRequest, modelId?: string): GeminiGenerateContentResponse | GeminiErrorResponse {
+export function generateContent(request: GeminiGenerateContentRequest): GeminiGenerateContentResponse | GeminiErrorResponse {
   // Validate request
   if (!request.contents || request.contents.length === 0) {
     return {
@@ -84,8 +84,8 @@ export function generateContent(request: GeminiGenerateContentRequest, modelId?:
   const lastContent = request.contents[request.contents.length - 1];
   const userText = lastContent.parts.map(part => part.text || '').join(' ');
 
-  // Check if this is an echo model
-  const model = modelId ? findGeminiModelById(modelId) : null;
+  // Check if this is an echo model (model can be specified in request body)
+  const model = request.model ? findGeminiModelById(request.model) : null;
   let responseText: string;
   
   if (model && model.type === 'echo') {
@@ -139,7 +139,7 @@ export function generateContent(request: GeminiGenerateContentRequest, modelId?:
 /**
  * Generate content (streaming)
  */
-export function* streamGenerateContent(request: GeminiGenerateContentRequest, modelId?: string): Generator<string, void, unknown> {
+export function* streamGenerateContent(request: GeminiGenerateContentRequest): Generator<string, void, unknown> {
   // Validate request
   if (!request.contents || request.contents.length === 0) {
     const errorResponse = {
@@ -157,8 +157,8 @@ export function* streamGenerateContent(request: GeminiGenerateContentRequest, mo
   const lastContent = request.contents[request.contents.length - 1];
   const userText = lastContent.parts.map(part => part.text || '').join(' ');
 
-  // Check if this is an echo model
-  const model = modelId ? findGeminiModelById(modelId) : null;
+  // Check if this is an echo model (model can be specified in request body)
+  const model = request.model ? findGeminiModelById(request.model) : null;
   let chunks: string[];
   
   if (model && model.type === 'echo') {
