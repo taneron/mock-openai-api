@@ -48,6 +48,7 @@ export interface GeminiSafetySettings {
 }
 
 export interface GeminiGenerateContentRequest {
+  model?: string;
   contents: GeminiContent[];
   tools?: any[];
   safetySettings?: GeminiSafetySettings[];

@@ -7,6 +7,7 @@ import {
 } from '../types/gemini';
 import { geminiMockModels } from '../data/geminiMockData';
 import { markdownTestCases } from '../data/testCases';
+import { findGeminiModelById } from '../utils/geminiHelpers';
 
 /**
  * Get Gemini model list
@@ -29,6 +30,42 @@ export function getGeminiModels(): GeminiModelsResponse {
 }
 
 /**
+ * Build echo response content from Gemini request
+ */
+function buildGeminiEchoContent(request: GeminiGenerateContentRequest): string {
+  let echoContent = "# Echo Response\n\n";
+  
+  // Gemini doesn't have a separate system prompt, but we can look for "system" role content
+  const systemContents = request.contents.filter(c => c.role === 'system');
+  if (systemContents.length > 0) {
+    echoContent += "## System Prompt\n\n";
+    systemContents.forEach(content => {
+      content.parts.forEach(part => {
+        if (part.text) {
+          echoContent += part.text + "\n\n";
+        }
+      });
+    });
+  }
+  
+  // Handle user messages
+  const userContents = request.contents.filter(c => c.role === 'user' || !c.role);
+  if (userContents.length > 0) {
+    echoContent += "## User Messages\n\n";
+    userContents.forEach((content, index) => {
+      echoContent += `### Message ${index + 1}\n\n`;
+      content.parts.forEach(part => {
+        if (part.text) {
+          echoContent += part.text + "\n\n";
+        }
+      });
+    });
+  }
+  
+  return echoContent;
+}
+
+/**
  * Generate content (non-streaming)
  */
 export function generateContent(request: GeminiGenerateContentRequest): GeminiGenerateContentResponse | GeminiErrorResponse {
@@ -47,17 +84,26 @@ export function generateContent(request: GeminiGenerateContentRequest): GeminiGe
   const lastContent = request.contents[request.contents.length - 1];
   const userText = lastContent.parts.map(part => part.text || '').join(' ');
 
-  // Use the first test case from markdown test cases
-  const testCase = markdownTestCases[0];
+  // Check if this is an echo model (model can be specified in request body)
+  const model = request.model ? findGeminiModelById(request.model) : null;
+  let responseText: string;
+  
+  if (model && model.type === 'echo') {
+    responseText = buildGeminiEchoContent(request);
+  } else {
+    // Use the first test case from markdown test cases
+    const testCase = markdownTestCases[0];
+    responseText = testCase.response;
+  }
   
   const promptTokenCount = Math.ceil(userText.length / 4);
-  const candidatesTokenCount = Math.ceil(testCase.response.length / 4);
+  const candidatesTokenCount = Math.ceil(responseText.length / 4);
 
   return {
     candidates: [{
       content: {
         parts: [{
-          text: testCase.response
+          text: responseText
         }],
         role: "model"
       },
@@ -111,13 +157,47 @@ export function* streamGenerateContent(request: GeminiGenerateContentRequest): G
   const lastContent = request.contents[request.contents.length - 1];
   const userText = lastContent.parts.map(part => part.text || '').join(' ');
 
-  // Use the first test case from markdown test cases
-  const testCase = markdownTestCases[0];
+  // Check if this is an echo model (model can be specified in request body)
+  const model = request.model ? findGeminiModelById(request.model) : null;
+  let chunks: string[];
+  
+  if (model && model.type === 'echo') {
+    // Build echo chunks
+    chunks = ["# Echo Response\n\n"];
+    
+    // Add system content if present
+    const systemContents = request.contents.filter(c => c.role === 'system');
+    if (systemContents.length > 0) {
+      chunks.push("## System Prompt\n\n");
+      systemContents.forEach(content => {
+        content.parts.forEach(part => {
+          if (part.text) {
+            chunks.push(part.text + "\n\n");
+          }
+        });
+      });
+    }
+    
+    // Add user messages
+    const userContents = request.contents.filter(c => c.role === 'user' || !c.role);
+    if (userContents.length > 0) {
+      chunks.push("## User Messages\n\n");
+      userContents.forEach((content, index) => {
+        chunks.push(`### Message ${index + 1}\n\n`);
+        content.parts.forEach(part => {
+          if (part.text) {
+            chunks.push(part.text + "\n\n");
+          }
+        });
+      });
+    }
+  } else {
+    // Use the first test case from markdown test cases
+    const testCase = markdownTestCases[0];
+    chunks = testCase.streamChunks || [testCase.response];
+  }
   
   const promptTokenCount = Math.ceil(userText.length / 4);
-  
-  // Stream the response in chunks
-  const chunks = testCase.streamChunks || [testCase.response];
   let totalCandidatesTokens = 0;
 
   for (let i = 0; i < chunks.length; i++) {

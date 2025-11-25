@@ -30,6 +30,14 @@ export function generateModelName(): string {
 export function findGeminiModelById(modelId: string) {
   // Remove 'models/' prefix if present
   const cleanModelId = modelId.replace('models/', '');
+  
+  // First check for direct match
+  let foundModel = geminiMockModels.find(model => model.id === cleanModelId);
+  if (foundModel) {
+    return foundModel;
+  }
+  
+  // Then check for mapped model name
   const mappedModelId = getMappedModelName(cleanModelId);
   return geminiMockModels.find(model => model.id === mappedModelId);
 }

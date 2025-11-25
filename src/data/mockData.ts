@@ -1,5 +1,5 @@
 import { MockModel, MockTestCase } from '../types';
-import { thinkingTestCases, functionTestCases, markdownTestCases } from './testCases';
+import { thinkingTestCases, functionTestCases, markdownTestCases, echoTestCases } from './testCases';
 import { ImgData } from './base64Img';
 
 
@@ -44,6 +44,13 @@ export const mockModels: MockModel[] = [
       prompt: "Any image description",
       response: "I have generated the image for you."
     }]
+  },
+  {
+    id: "mocked-gpt-echo",
+    name: "Mock GPT Echo",
+    description: "Model that echoes back the system and user prompts, useful for debugging input processing",
+    type: "echo",
+    testCases: echoTestCases
   }
 ];
 
