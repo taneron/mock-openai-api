@@ -21,6 +21,44 @@ export function getModels(): ModelsResponse {
 		has_more: false  
 	}  
 }
+
+/**
+ * Build echo response content from request
+ */
+function buildEchoContent(request: MessagesRequest): string {
+	let echoContent = "# Echo Response\n\n";
+	
+	// Handle system prompt
+	if (request.system) {
+		echoContent += "## System Prompt\n\n";
+		if (typeof request.system === 'string') {
+			echoContent += request.system + "\n\n";
+		} else if (request.system.text) {
+			echoContent += request.system.text + "\n\n";
+		}
+	}
+	
+	// Handle user messages
+	const userMessages = request.messages.filter((msg) => msg.role === "user");
+	if (userMessages.length > 0) {
+		echoContent += "## User Messages\n\n";
+		userMessages.forEach((msg, index) => {
+			echoContent += `### Message ${index + 1}\n\n`;
+			if (typeof msg.content === 'string') {
+				echoContent += msg.content + "\n\n";
+			} else if (Array.isArray(msg.content)) {
+				msg.content.forEach((block: any) => {
+					if (block.type === 'text') {
+						echoContent += block.text + "\n\n";
+					}
+				});
+			}
+		});
+	}
+	
+	return echoContent;
+}
+
 /**
  * Non-streaming response
  */
@@ -41,17 +79,23 @@ export function createMessage(request: MessagesRequest): MessagesResponse | Erro
 		return formatErrorResponse("No user message found");
 	}
 
-	// Select test case
+	// Select test case or build echo response
 	const testCase = model.testCases[0];
 	const messageId = generateMessageId();
+	
+	// For echo type, build the echo response
+	let responseText = testCase.response;
+	if (model.type === "echo") {
+		responseText = buildEchoContent(request);
+	}
  
 	let content = {
 		type: "text",
-		text: testCase.response
+		text: responseText
 	};
 
 	const inputTokens = calculateTokens(lastUserMessage.content || "");
-	const outputTokens = calculateTokens(testCase.response || "");
+	const outputTokens = calculateTokens(responseText || "");
 
 	const stop_reason = "end_turn"
 	const stop_sequence = null;
@@ -156,8 +200,54 @@ export function* createMessageStream(request: MessagesRequest): Generator<string
 	}
 	yield SSEMessageFormatter('content_block_start', firstChunk);
 
-	//If there are predefined streaming chunks, use them
-	if(testCase.streamChunks && testCase.streamChunks.length > 0){
+	// Handle echo type
+	if (model.type === "echo") {
+		const echoChunks = [
+			"# Echo Response\n\n"
+		];
+		
+		// Add system prompt chunks if present
+		if (request.system) {
+			echoChunks.push("## System Prompt\n\n");
+			if (typeof request.system === 'string') {
+				echoChunks.push(request.system + "\n\n");
+			} else if (request.system.text) {
+				echoChunks.push(request.system.text + "\n\n");
+			}
+		}
+		
+		// Add user messages chunks
+		const userMessages = request.messages.filter((msg) => msg.role === "user");
+		if (userMessages.length > 0) {
+			echoChunks.push("## User Messages\n\n");
+			userMessages.forEach((msg, index) => {
+				echoChunks.push(`### Message ${index + 1}\n\n`);
+				if (typeof msg.content === 'string') {
+					echoChunks.push(msg.content + "\n\n");
+				} else if (Array.isArray(msg.content)) {
+					msg.content.forEach((block: any) => {
+						if (block.type === 'text') {
+							echoChunks.push(block.text + "\n\n");
+						}
+					});
+				}
+			});
+		}
+		
+		for (const chunk of echoChunks) {
+			outputTokens += calculateTokens(chunk);
+			const streamChunk: ContentBlockDeltaEvent = {
+				type: 'content_block_delta',
+				index: 0,
+				delta: {
+					type: 'text_delta',
+					text: chunk
+				}
+			}
+			yield SSEMessageFormatter('content_block_delta', streamChunk);
+		}
+	} else if(testCase.streamChunks && testCase.streamChunks.length > 0){
+		//If there are predefined streaming chunks, use them
 		for(const chunk of testCase.streamChunks){
 			outputTokens += calculateTokens(chunk);
 			const streamChunk: ContentBlockDeltaEvent = {

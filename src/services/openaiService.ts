@@ -68,6 +68,27 @@ export function createChatCompletion(
   // Build response message
   let content = testCase.response;
 
+  // If it's an echo model, build the echo response from system and user prompts
+  if (model.type === "echo") {
+    const systemMessage = request.messages.find((msg) => msg.role === "system");
+    const userMessages = request.messages.filter((msg) => msg.role === "user");
+    
+    let echoContent = "# Echo Response\n\n";
+    
+    if (systemMessage && systemMessage.content) {
+      echoContent += `## System Prompt\n\n${systemMessage.content}\n\n`;
+    }
+    
+    if (userMessages.length > 0) {
+      echoContent += `## User Messages\n\n`;
+      userMessages.forEach((msg, index) => {
+        echoContent += `### Message ${index + 1}\n\n${msg.content || ""}\n\n`;
+      });
+    }
+    
+    content = echoContent;
+  }
+
   // If it's a thinking-tag model and has reasoning_content, wrap it in <think> tags
   if (model.type === "thinking-tag" && testCase.reasoning_content) {
     content = `<think>\n${testCase.reasoning_content}\n</think>\n\n${testCase.response}`;
@@ -94,7 +115,7 @@ export function createChatCompletion(
   }
 
   const promptTokens = calculateTokens(lastUserMessage.content || "");
-  const completionTokens = calculateTokens(testCase.response || "");
+  const completionTokens = calculateTokens(content || "");
   const reasoningTokens = testCase.reasoning_content
     ? calculateTokens(testCase.reasoning_content)
     : 0;
@@ -564,6 +585,68 @@ export function* createChatCompletionStream(
         yield `data: ${JSON.stringify(streamChunk)}\n\n`;
         completionTokens += calculateTokens(chunkText);
       }
+    }
+  } else if (model.type === "echo") {
+    // Echo mode: return system and user prompts
+    // Send first chunk - role and empty content
+    const firstChunk: ChatCompletionStreamChunk = {
+      id,
+      object: "chat.completion.chunk",
+      created: timestamp,
+      model: request.model,
+      system_fingerprint: systemFingerprint,
+      choices: [
+        {
+          index: 0,
+          delta: {
+            role: "assistant",
+            content: "",
+          },
+          finish_reason: null,
+        },
+      ],
+    };
+    yield `data: ${JSON.stringify(firstChunk)}\n\n`;
+
+    // Build echo content
+    const systemMessage = request.messages.find((msg) => msg.role === "system");
+    const userMessages = request.messages.filter((msg) => msg.role === "user");
+    
+    const echoChunks: string[] = [];
+    echoChunks.push("# Echo Response\n\n");
+    
+    if (systemMessage && systemMessage.content) {
+      echoChunks.push("## System Prompt\n\n");
+      echoChunks.push(systemMessage.content + "\n\n");
+    }
+    
+    if (userMessages.length > 0) {
+      echoChunks.push("## User Messages\n\n");
+      userMessages.forEach((msg, index) => {
+        echoChunks.push(`### Message ${index + 1}\n\n`);
+        echoChunks.push((msg.content || "") + "\n\n");
+      });
+    }
+
+    for (const chunk of echoChunks) {
+      const streamChunk: ChatCompletionStreamChunk = {
+        id,
+        object: "chat.completion.chunk",
+        created: timestamp,
+        model: request.model,
+        system_fingerprint: systemFingerprint,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              content: chunk,
+            },
+            finish_reason: null,
+          },
+        ],
+      };
+      yield `data: ${JSON.stringify(streamChunk)}\n\n`;
+      completionTokens += calculateTokens(chunk);
     }
   } else {
     // Non-thinking mode: normal output

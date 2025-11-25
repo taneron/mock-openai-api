@@ -28,6 +28,13 @@ export function calculateTokens(text: string): number {
  * Find model by ID
  */
 export function findModelById(modelId: string): MockModel | undefined {
+  // First check for direct match
+  let foundModel = anthropicMockModels.find(model => model.id === modelId);
+  if (foundModel) {
+    return foundModel;
+  }
+  
+  // Then check for mapped model name
   const mappedModelId = getMappedModelName(modelId);
   return anthropicMockModels.find(model => model.id === mappedModelId);
 }

@@ -31,6 +31,7 @@ export function handleGetGeminiModels(req: Request, res: Response) {
 export function handleGenerateContent(req: Request, res: Response) {
   try {
     const request: GeminiGenerateContentRequest = req.body;
+    const modelId = req.params.model || '';
 
     // Basic validation
     if (!request.contents || request.contents.length === 0) {
@@ -53,7 +54,7 @@ export function handleGenerateContent(req: Request, res: Response) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
 
-      const stream = streamGenerateContent(request);
+      const stream = streamGenerateContent(request, modelId);
       for (const chunk of stream) {
         res.write(chunk);
       }
@@ -62,7 +63,7 @@ export function handleGenerateContent(req: Request, res: Response) {
     }
 
     // Non-streaming response
-    const response = generateContent(request);
+    const response = generateContent(request, modelId);
 
     // Check if it's an error response
     if ('error' in response) {

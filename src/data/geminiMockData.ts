@@ -1,5 +1,5 @@
 import { MockModel } from "../types";
-import { markdownTestCases, functionTestCases } from './testCases';
+import { markdownTestCases, functionTestCases, echoTestCases } from './testCases';
 
 export const geminiMockModels: MockModel[] = [
   {
@@ -29,5 +29,12 @@ export const geminiMockModels: MockModel[] = [
     description: "Multimodal model capable of understanding both text and images",
     type: "image",
     testCases: markdownTestCases
+  },
+  {
+    id: "mocked-gemini-echo",
+    name: "Mock Gemini Echo",
+    description: "Model that echoes back the system and user prompts, useful for debugging input processing",
+    type: "echo",
+    testCases: echoTestCases
   }
 ];

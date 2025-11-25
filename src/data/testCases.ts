@@ -1138,3 +1138,14 @@ You can also use base64 images inline ![inline](${ImgData}) within text.
   }
 
 ];
+
+// Echo model test case - this is a placeholder, actual response is dynamically generated
+export const echoTestCases: MockTestCase[] = [
+  {
+    name: "Echo Input",
+    description: "Echoes back the system and user prompts",
+    prompt: "Any prompt",
+    response: "Echo response placeholder - actual response is dynamically generated",
+    streamChunks: ["Echo response placeholder"]
+  }
+];
